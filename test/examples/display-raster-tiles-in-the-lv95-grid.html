@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Display raster tiles in the LV95 grid</title>
+    <meta property="og:description" content="Draw swisstopo raster tiles cut in the Swiss LV95 grid with a custom layer, next to vector tiles cut in Web Mercator, in the LV95 or the Web Mercator projection." />
+    <meta property="og:category" content="Projections" />
+    <meta property="og:created" content="2026-11-10" />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+        #panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 8px 10px;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+            font: 13px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+        }
+        #panel fieldset { border: 0; margin: 0 0 6px; padding: 0; }
+        #panel legend { font-weight: bold; padding: 0; }
+        #status { color: #555; font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+    <fieldset>
+        <legend>Tiles</legend>
+        <label><input type="radio" name="tiles" value="raster" checked> Raster, LV95 grid</label><br>
+        <label><input type="radio" name="tiles" value="vector"> Vector, Web Mercator grid</label>
+    </fieldset>
+    <fieldset>
+        <legend>Projection</legend>
+        <label><input type="radio" name="projection" value="lv95" checked> LV95</label>
+        <label><input type="radio" name="projection" value="mercator"> Web Mercator</label>
+    </fieldset>
+    <div id="status"></div>
+</div>
+<script type="module">
+    import * as maplibregl from '../../dist/maplibre-gl-dev.mjs';
+    import {SwisstopoWmtsLayer} from './swisstopo-lv95-tiles/swisstopo_wmts_layer.mjs';
+    import {lngLatToLV95} from './swisstopo-lv95-tiles/lv95.mjs';
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.basemap.vt/style.json',
+        center: [7.4474, 46.948],
+        zoom: 8,
+        maxZoom: 22,
+        maxBounds: [[4, 44.5], [12, 49]],
+        hash: true
+    });
+    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.ScaleControl());
+
+    // The raster layer goes on top of the vector style and loads its tiles whether it is shown or not, and the vector
+    // layers stay visible below it, so both kinds of tiles keep loading and switching between them is instant.
+    const rasterLayer = new SwisstopoWmtsLayer('swisstopo-raster');
+    const selected = (name) => document.querySelector(`input[name="${name}"]:checked`).value;
+
+    map.on('style.load', () => {
+        map.setProjection({type: selected('projection')});
+        map.addLayer(rasterLayer);
+        rasterLayer.setShown(selected('tiles') === 'raster');
+    });
+
+    for (const input of document.querySelectorAll('input[name="tiles"]')) {
+        input.addEventListener('change', () => rasterLayer.setShown(selected('tiles') === 'raster'));
+    }
+    for (const input of document.querySelectorAll('input[name="projection"]')) {
+        input.addEventListener('change', () => map.setProjection({type: selected('projection')}));
+    }
+
+    let cursor = '';
+    function updateStatus() {
+        const {level, resolution, tiles} = rasterLayer.stats;
+        document.getElementById('status').innerHTML = `zoom ${map.getZoom().toFixed(2)}<br>WMTS level ${level}, ${resolution} m/px, ${tiles} tiles${cursor}`;
+    }
+    map.on('render', updateStatus);
+    map.on('mousemove', (e) => {
+        const [east, north] = lngLatToLV95(e.lngLat.lng, e.lngLat.lat);
+        cursor = `<br>E ${east.toFixed(1)}, N ${north.toFixed(1)}`;
+        updateStatus();
+    });
+</script>
+</body>
+</html>
