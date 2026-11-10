@@ -10,7 +10,23 @@
     <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
     <style>
         body { margin: 0; padding: 0; }
-        html, body, #map { height: 100%; }
+        html, body { height: 100%; }
+        body { display: flex; flex-direction: column; }
+        #banner {
+            flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: #e3000f;
+            color: #fff;
+            font: 500 15px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            text-align: center;
+        }
+        #banner svg { flex: none; }
+        #content { position: relative; flex: 1; min-height: 0; }
+        #map { position: absolute; inset: 0; }
         #panel {
             position: absolute;
             top: 10px;
@@ -27,6 +43,11 @@
     </style>
 </head>
 <body>
+<div id="banner" role="alert">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6M14 4l-4 16"/></svg>
+    Proof of concept — not ready for production use
+</div>
+<div id="content">
 <div id="map"></div>
 <div id="panel">
     <fieldset>
@@ -40,6 +61,7 @@
         <label><input type="radio" name="projection" value="mercator"> Web Mercator</label>
     </fieldset>
     <div id="status"></div>
+</div>
 </div>
 <script type="module">
     import * as maplibregl from '../../dist/maplibre-gl-dev.mjs';
