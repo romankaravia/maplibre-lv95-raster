@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Display a map in the Swiss LV95 projection</title>
+    <meta property="og:description" content="Render Web Mercator tiles in the Swiss LV95 projection (EPSG:2056), with the LV95 kilometer grid on top." />
+    <meta property="og:category" content="Projections" />
+    <meta property="og:created" content="2026-11-10" />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+        #panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 8px 10px;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+            font: 13px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+        }
+        #coordinates { font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+    <label><input type="radio" name="projection" value="lv95" checked> LV95</label>
+    <label><input type="radio" name="projection" value="mercator"> Web Mercator</label>
+    <div><label><input type="checkbox" id="grid" checked> LV95 grid (20 km)</label></div>
+    <div id="coordinates">E –, N –</div>
+</div>
+<script type="module">
+    import * as maplibregl from '../../dist/maplibre-gl-dev.mjs';
+
+    // swisstopo's approximate formulas between WGS84 and LV95, good to about a meter in Switzerland.
+    // They are only used to draw the grid and show the cursor position; the map projects with the rigorous formulas.
+    function lv95ToLngLat(east, north) {
+        const y = (east - 2600000) / 1000000;
+        const x = (north - 1200000) / 1000000;
+        const lng = 2.6779094 + 4.728982 * y + 0.791484 * y * x + 0.1306 * y * x * x - 0.0436 * y * y * y;
+        const lat = 16.9023892 + 3.238272 * x - 0.270978 * y * y - 0.002528 * x * x - 0.0447 * y * y * x - 0.0140 * x * x * x;
+        return [lng * 100 / 36, lat * 100 / 36];
+    }
+
+    function lngLatToLV95(lng, lat) {
+        const l = (lng * 3600 - 26782.5) / 10000;
+        const p = (lat * 3600 - 169028.66) / 10000;
+        return [
+            2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l * l * l,
+            1200147.07 + 308807.95 * p + 3745.25 * l * l + 76.63 * p * p - 194.56 * l * l * p + 119.79 * p * p * p
+        ];
+    }
+
+    // Lines of constant easting and northing every 20 km, with a vertex every kilometer, so they follow the
+    // curves the grid draws in lng/lat. In the LV95 projection they come out straight, east-west and north-south.
+    function lv95Grid() {
+        const features = [];
+        const line = (from, to, toLV95) => {
+            const coordinates = [];
+            for (let s = from; s <= to; s += 1000) coordinates.push(lv95ToLngLat(...toLV95(s)));
+            features.push({type: 'Feature', properties: {}, geometry: {type: 'LineString', coordinates}});
+        };
+        for (let east = 2480000; east <= 2840000; east += 20000) line(1060000, 1300000, (north) => [east, north]);
+        for (let north = 1060000; north <= 1300000; north += 20000) line(2480000, 2840000, (east) => [east, north]);
+        return {type: 'FeatureCollection', features};
+    }
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://vectortiles.geo.admin.ch/styles/ch.swisstopo.basemap.vt/style.json',
+        center: [8.23, 46.82],
+        zoom: 7.3,
+        maxBounds: [[2, 44], [14.5, 49.5]],
+        hash: true
+    });
+    map.addControl(new maplibregl.NavigationControl());
+    map.addControl(new maplibregl.ScaleControl());
+
+    map.on('style.load', () => {
+        map.setProjection({type: document.querySelector('input[name="projection"]:checked').value});
+        map.addSource('lv95-grid', {type: 'geojson', data: lv95Grid()});
+        map.addLayer({
+            id: 'lv95-grid',
+            type: 'line',
+            source: 'lv95-grid',
+            layout: {visibility: document.getElementById('grid').checked ? 'visible' : 'none'},
+            paint: {'line-color': '#d0021b', 'line-width': 1, 'line-opacity': 0.7}
+        });
+    });
+
+    for (const input of document.querySelectorAll('input[name="projection"]')) {
+        input.addEventListener('change', (e) => map.setProjection({type: e.target.value}));
+    }
+    document.getElementById('grid').addEventListener('change', (e) => {
+        map.setLayoutProperty('lv95-grid', 'visibility', e.target.checked ? 'visible' : 'none');
+    });
+    map.on('mousemove', (e) => {
+        const [east, north] = lngLatToLV95(e.lngLat.lng, e.lngLat.lat);
+        document.getElementById('coordinates').textContent = `E ${Math.round(east).toLocaleString('de-CH')}, N ${Math.round(north).toLocaleString('de-CH')}`;
+    });
+</script>
+</body>
+</html>

@@ -71,6 +71,39 @@ export type ProjectionData<MainMatrix extends mat4 = mat4, FallbackMatrix extend
      * Uniform name: `u_projection_clip_antimeridian`.
      */
     clipAntimeridian: boolean;
+    /**
+     * How a projection that reprojects Web Mercator tiles in the vertex shader, such as LV95, takes tile coordinates
+     * to the plane that {@link mainMatrix} projects to screen. Absent for every other projection, which the shaders
+     * read as zeros.
+     */
+    reprojection?: ProjectionReprojectionData;
+};
+
+/**
+ * The per-tile reprojection of a projection whose world plane differs from the Web Mercator grid tiles are cut in.
+ * Tile coordinates reach the plane in planar tile units: world units relative to a reference point of the tile,
+ * divided by the world size of one tile unit.
+ */
+export type ProjectionReprojectionData = {
+    /**
+     * `[mode, scale, referenceX, referenceY]`. Mode 0 passes tile coordinates through unchanged, mode 1 projects the
+     * tile's mercator positions exactly, and mode 2 evaluates {@link coefficients} at `(tile position - reference) * scale`,
+     * the reference given in tile units.
+     * Uniform name: `u_projection_reprojection_params`.
+     */
+    params: [number, number, number, number];
+    /**
+     * `[worldX, worldY, lineScale, 0]`: the world position planar tile units are relative to, and how many planar
+     * tile units one tile unit spans, which lines are extruded by in modes 0 and 2.
+     * Uniform name: `u_projection_reprojection_origin`.
+     */
+    origin: [number, number, number, number];
+    /**
+     * The coefficients of the biquadratic polynomial of mode 2 in planar tile units, as x/y pairs of the terms
+     * `u, v, u², uv, v², u²v, uv², u²v²`.
+     * Uniform name: `u_projection_reprojection_coefficients`.
+     */
+    coefficients: ArrayLike<number>;
 };
 
 /**

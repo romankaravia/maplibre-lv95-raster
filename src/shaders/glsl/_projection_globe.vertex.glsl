@@ -172,3 +172,19 @@ vec4 projectTileFor3D(vec2 posInTile, float elevation) {
     vec3 spherePos = projectToSphere(posInTile, posInTile);
     return interpolateProjectionFor3D(posInTile, spherePos, elevation);
 }
+
+// Positions in the plane that pitch-aligned symbols and circles are laid out in, in tile units.
+// Tiles reach the screen through this plane unchanged in this projection.
+vec2 projectTileToPlane(vec2 posInTile) {
+    return posInTile;
+}
+
+// Projects a position given by projectTileToPlane, after offsets in tile units were added to it.
+vec4 projectPlanarTile(vec2 planar, float elevation) {
+    return projectTileWithElevation(planar, elevation);
+}
+
+// Projects a line vertex extruded by an offset in tile units.
+vec4 projectLineTile(vec2 posInTile, vec2 extrusion) {
+    return projectTile(posInTile + extrusion);
+}

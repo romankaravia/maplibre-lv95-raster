@@ -94,6 +94,11 @@ export type TransformOptions = {
      * The camera's lng/lat to world coordinate mapping, fixed for the transform's lifetime. Defaults to mercator.
      */
     worldCoordinateHelper?: WorldCoordinateHelper;
+    /**
+     * The lng/lat to world coordinate mapping of the grid tiles are cut in, fixed for the transform's lifetime.
+     * Defaults to {@link worldCoordinateHelper}.
+     */
+    tileWorldCoordinateHelper?: WorldCoordinateHelper;
 };
 
 function getTileZoom(zoom: number): number {
@@ -124,11 +129,13 @@ export class TransformHelper implements ITransformGetters {
     _constrainOverride: TransformConstrainFunction;
 
     private readonly _worldCoordinateHelper: WorldCoordinateHelper;
+    private readonly _tileWorldCoordinateHelper: WorldCoordinateHelper;
 
     constructor(callbacks: TransformHelperCallbacks, options?: TransformOptions) {
         this._callbacks = callbacks;
         this._cameraState = createCameraState(options);
         this._worldCoordinateHelper = options?.worldCoordinateHelper ?? mercatorWorldCoordinateHelper;
+        this._tileWorldCoordinateHelper = options?.tileWorldCoordinateHelper ?? this._worldCoordinateHelper;
 
         this._constrainOverride = options?.constrainOverride ?? null;
 
@@ -198,6 +205,7 @@ export class TransformHelper implements ITransformGetters {
     get lngRange(): [number, number] { return this._cameraState.lngRange; }
     get latRange(): [number, number] { return this._cameraState.latRange; }
     get worldCoordinateHelper(): WorldCoordinateHelper { return this._worldCoordinateHelper; }
+    get tileWorldCoordinateHelper(): WorldCoordinateHelper { return this._tileWorldCoordinateHelper; }
 
     get pixelsToGLUnits(): [number, number] { return this._cameraState.pixelsToGLUnits; }
 

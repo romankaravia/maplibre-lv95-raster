@@ -1,5 +1,6 @@
 ## main
 ### ✨ Features and improvements
+- Add the Swiss `lv95` projection (EPSG:2056), which renders Web Mercator tiles in the LV95 grid with swisstopo's rigorous formulas
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes

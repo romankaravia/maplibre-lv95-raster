@@ -1,0 +1,45 @@
+{
+  "version": 8,
+  "metadata": {
+    "test": {
+      "description": "The world raster fixture in LV95 at zoom 0.6, centered over the Atlantic, west of Bern: the oblique cylinder through Bern bends the ellipse and the square of the image, which Web Mercator draws upright.",
+      "width": 512,
+      "height": 512
+    }
+  },
+  "center": [
+    -25,
+    25
+  ],
+  "zoom": 0.6,
+  "projection": {
+    "type": "lv95"
+  },
+  "sources": {
+    "maplibre": {
+      "type": "raster",
+      "tiles": [
+        "local://tiles/0-0-0.png"
+      ],
+      "maxzoom": 0,
+      "tileSize": 256
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "white"
+      }
+    },
+    {
+      "id": "raster",
+      "type": "raster",
+      "source": "maplibre",
+      "paint": {
+        "raster-fade-duration": 0
+      }
+    }
+  ]
+}

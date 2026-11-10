@@ -167,6 +167,13 @@ export interface ITransformGetters {
      */
     get worldCoordinateHelper(): WorldCoordinateHelper;
     /**
+     * @internal
+     * The lng/lat to world-coordinate mapping of the grid tiles are cut in, which tile coordinates, terrain samples and
+     * {@link IReadonlyTransform.screenPointToMercatorCoordinate} are expressed in. The same as {@link worldCoordinateHelper},
+     * except in a projection that reprojects Web Mercator tiles into a world plane of its own, such as LV95.
+     */
+    get tileWorldCoordinateHelper(): WorldCoordinateHelper;
+    /**
      * The distance from the camera to the center of the map in pixels space.
      */
     get cameraToCenterDistance(): number;
@@ -429,7 +436,7 @@ export interface IReadonlyTransform extends ITransformGetters {
 
     /**
      * @internal
-     * Given a point on screen, return its mercator coordinate.
+     * Given a point on screen, return its position in the grid tiles are cut in, see {@link ITransformGetters.tileWorldCoordinateHelper}.
      * @param p - the point
      * @param terrain - optional terrain
      * @returns lnglat
@@ -438,7 +445,7 @@ export interface IReadonlyTransform extends ITransformGetters {
 
     /**
      * @internal
-     * Given a point on screen, return the mercator coordinate where its ray hits the rendered terrain surface.
+     * Given a point on screen, return the position in the grid tiles are cut in where its ray hits the rendered terrain surface.
      * @param p - the point
      * @param terrain - the terrain
      * @returns the hit with z in meters, or null when the terrain has no renderable tiles or the ray never crosses the terrain surface
@@ -606,6 +613,28 @@ export interface IReadonlyTransform extends ITransformGetters {
      * Projects a point in tile coordinates to clip space. Used in symbol rendering.
      */
     projectTileCoordinates(x: number, y: number, unwrappedTileID: UnwrappedTileID, elevation?: number): PointProjection;
+
+    /**
+     * @internal
+     * Projects a tile position into the plane of a projection that reprojects tiles, in planar tile units: positions in
+     * that plane relative to a reference point of the tile, at the scale of tile units. Pitch-aligned labels and circles
+     * are laid out in it, so that they keep their shape where the projection turns or scales the tile.
+     * Absent where tiles reach the screen unchanged, as in mercator and globe.
+     */
+    projectTileCoordinatesToPlane?(x: number, y: number, tileID: UnwrappedTileID): Point;
+
+    /**
+     * @internal
+     * Projects a position in planar tile units, see {@link projectTileCoordinatesToPlane}, to clip space.
+     */
+    projectPlanarTileCoordinates?(x: number, y: number, tileID: UnwrappedTileID, elevation?: number): PointProjection;
+
+    /**
+     * @internal
+     * Approximately inverts {@link projectTileCoordinatesToPlane}, to sample tile data such as the terrain elevation
+     * under a position laid out in planar tile units.
+     */
+    tileCoordinatesFromPlane?(x: number, y: number, tileID: UnwrappedTileID): Point;
 
     /**
      * Return projection data such that coordinates in mercator projection in range 0..1 will get projected to the map correctly.

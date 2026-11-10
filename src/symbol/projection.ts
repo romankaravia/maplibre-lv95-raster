@@ -689,7 +689,11 @@ export function projectTileCoordinatesToLabelPlane(x: number, y: number, project
     const translatedY = y + projectionContext.translation[1];
     let projection;
     if (projectionContext.pitchWithMap) {
-        projection = projectWithMatrix(translatedX, translatedY, projectionContext.pitchedLabelPlaneMatrix, elevationAt(projectionContext, translatedX, translatedY));
+        const elevation = elevationAt(projectionContext, translatedX, translatedY);
+        const planar = projectionContext.transform.projectTileCoordinatesToPlane?.(translatedX, translatedY, projectionContext.unwrappedTileID);
+        projection = planar ?
+            projectWithMatrix(planar.x, planar.y, projectionContext.pitchedLabelPlaneMatrix, elevation) :
+            projectWithMatrix(translatedX, translatedY, projectionContext.pitchedLabelPlaneMatrix, elevation);
         projection.isOccluded = false;
     } else {
         projection = projectionContext.transform.projectTileCoordinates(translatedX, translatedY, projectionContext.unwrappedTileID, elevationAt(projectionContext, translatedX, translatedY));
@@ -703,15 +707,27 @@ function projectFromLabelPlaneToClipSpace(x: number, y: number, projectionContex
     if (projectionContext.pitchWithMap) {
         const pos = [x, y, 0, 1] as vec4;
         vec4.transformMat4(pos, pos, pitchedLabelPlaneMatrixInverse);
-        const tileX = pos[0] / pos[3];
-        const tileY = pos[1] / pos[3];
-        return projectionContext.transform.projectTileCoordinates(tileX, tileY, projectionContext.unwrappedTileID, elevationAt(projectionContext, tileX, tileY)).point;
+        return projectPlanarTileCoordinates(projectionContext, pos[0] / pos[3], pos[1] / pos[3]).point;
     } else {
         return {
             x: (x / projectionContext.width) * 2.0 - 1.0,
             y: 1.0 - (y / projectionContext.height) * 2.0
         };
     }
+}
+
+/**
+ * Projects a position in the plane pitch-aligned labels are laid out in to the GL clip space (-1..1), with the
+ * elevation of the tile position under it. The plane is the projection's, in planar tile units, where it reprojects
+ * tiles (see {@link IReadonlyTransform.projectTileCoordinatesToPlane}), and the tile itself elsewhere.
+ */
+export function projectPlanarTileCoordinates(projectionContext: SymbolProjectionContext, x: number, y: number): PointProjection {
+    const {transform, unwrappedTileID} = projectionContext;
+    if (!transform.projectPlanarTileCoordinates) {
+        return transform.projectTileCoordinates(x, y, unwrappedTileID, elevationAt(projectionContext, x, y));
+    }
+    const tile = transform.tileCoordinatesFromPlane(x, y, unwrappedTileID);
+    return transform.projectPlanarTileCoordinates(x, y, unwrappedTileID, elevationAt(projectionContext, tile.x, tile.y));
 }
 
 /**
@@ -985,12 +1001,7 @@ export function projectPathSpecialProjection(projectedPath: Point[], projectionC
     fastInvertSkewMat4(inverseLabelPlaneMatrix, projectionContext.pitchedLabelPlaneMatrix);
     return projectedPath.map(p => {
         const backProjected = projectWithMatrix(p.x, p.y, inverseLabelPlaneMatrix, elevationAt(projectionContext, p.x, p.y));
-        const projected = projectionContext.transform.projectTileCoordinates(
-            backProjected.point.x,
-            backProjected.point.y,
-            projectionContext.unwrappedTileID,
-            elevationAt(projectionContext, backProjected.point.x, backProjected.point.y)
-        );
+        const projected = projectPlanarTileCoordinates(projectionContext, backProjected.point.x, backProjected.point.y);
         projected.point.x = (projected.point.x * 0.5 + 0.5) * projectionContext.width;
         projected.point.y = (-projected.point.y * 0.5 + 0.5) * projectionContext.height;
         return projected;

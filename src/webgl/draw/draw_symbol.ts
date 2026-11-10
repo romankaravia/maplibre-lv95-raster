@@ -169,7 +169,9 @@ function getShiftedAnchor(projectedAnchorPoint: Point, projectionContext: Symbol
             adjustedShift = adjustedShift.rotate(-transformAngle);
         }
         const tileAnchorShifted = translatedAnchor.add(adjustedShift);
-        return projectWithMatrix(tileAnchorShifted.x, tileAnchorShifted.y, projectionContext.pitchedLabelPlaneMatrix, elevationAt(projectionContext, tileAnchorShifted.x, tileAnchorShifted.y)).point;
+        const planarAnchor = projectionContext.transform.projectTileCoordinatesToPlane?.(translatedAnchor.x, translatedAnchor.y, projectionContext.unwrappedTileID);
+        const labelPlaneAnchor = planarAnchor ? planarAnchor.add(adjustedShift) : tileAnchorShifted;
+        return projectWithMatrix(labelPlaneAnchor.x, labelPlaneAnchor.y, projectionContext.pitchedLabelPlaneMatrix, elevationAt(projectionContext, tileAnchorShifted.x, tileAnchorShifted.y)).point;
     } else {
         if (rotateWithMap) {
             // Compute the angle with which to rotate the anchor, so that it is aligned with

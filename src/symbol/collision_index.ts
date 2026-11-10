@@ -483,6 +483,25 @@ export class CollisionIndex {
         }
     }
 
+    /**
+     * Projects a corner of a pitch-aligned collision box to the viewport. The corner is laid out in planar tile units
+     * where the projection reprojects tiles, see {@link IReadonlyTransform.projectTileCoordinatesToPlane}, and in tile
+     * units elsewhere; the elevation is sampled at the tile position under it.
+     */
+    private _projectPitchedBoxPoint(p: Point, unwrappedTileID: UnwrappedTileID, getElevation: GetElevation | undefined, heightOffset: number, heightAnchorGround: boolean, simpleProjectionMatrix?: mat4): {x: number; y: number; isOccluded: boolean} {
+        const transform = this.transform;
+        if (!transform.projectPlanarTileCoordinates) {
+            return this.projectAndGetPerspectiveRatio(p.x, p.y, unwrappedTileID, getSymbolElevation(getElevation, p.x, p.y, heightOffset, heightAnchorGround), simpleProjectionMatrix);
+        }
+        const tile = transform.tileCoordinatesFromPlane(p.x, p.y, unwrappedTileID);
+        const projected = transform.projectPlanarTileCoordinates(p.x, p.y, unwrappedTileID, getSymbolElevation(getElevation, tile.x, tile.y, heightOffset, heightAnchorGround));
+        return {
+            x: (((projected.point.x + 1) / 2) * transform.width) + viewportPadding,
+            y: (((-projected.point.y + 1) / 2) * transform.height) + viewportPadding,
+            isOccluded: projected.isOccluded
+        };
+    }
+
     getPerspectiveRatio(x: number, y: number, unwrappedTileID: UnwrappedTileID, elevation?: number): number {
         // We don't care about the actual projected point, just its W component.
         const projected = this.transform.projectTileCoordinates(x, y, unwrappedTileID, elevation);
@@ -571,6 +590,11 @@ export class CollisionIndex {
             // Configuration for tile space (map-pitch-aligned) offsets
             basePointX = translatedAnchorX;
             basePointY = translatedAnchorY;
+            const planarAnchor = this.transform.projectTileCoordinatesToPlane?.(translatedAnchorX, translatedAnchorY, unwrappedTileID);
+            if (planarAnchor) {
+                basePointX = planarAnchor.x;
+                basePointY = planarAnchor.y;
+            }
 
             const zoomFraction = this.transform.zoom - tileID.overscaledZ;
             distanceMultiplier = Math.pow(2, -zoomFraction);
@@ -631,7 +655,7 @@ export class CollisionIndex {
         let anyPointVisible = false;
 
         if (pitchWithMap) {
-            const projected = points.map(p => this.projectAndGetPerspectiveRatio(p.x, p.y, unwrappedTileID, getSymbolElevation(getElevation, p.x, p.y, heightOffset, heightAnchorGround), simpleProjectionMatrix));
+            const projected = points.map(p => this._projectPitchedBoxPoint(p, unwrappedTileID, getElevation, heightOffset, heightAnchorGround, simpleProjectionMatrix));
 
             // Is at least one of the projected points NOT behind the horizon?
             anyPointVisible = projected.some(p => !p.isOccluded);

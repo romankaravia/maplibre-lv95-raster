@@ -193,3 +193,42 @@ describe('Map in a CRS wider than ±180°', () => {
         expect(map.getCenter().lng).toBeCloseTo(200, 6);
     });
 });
+
+describe('Map in the LV95 projection', () => {
+    test('loads a style that declares the LV95 projection and keeps the center under the center of the map', async () => {
+        const map = createMap({style: {version: 8, sources: {}, layers: [], projection: {type: 'lv95'}}, center: [8.23, 46.82], zoom: 8});
+        await map.once('style.load');
+
+        expect(map.getProjection()).toEqual({type: 'lv95'});
+        const centerPoint = map.project(map.getCenter());
+        expect(centerPoint.x).toBeCloseTo(map.getContainer().clientWidth / 2, 6);
+        expect(centerPoint.y).toBeCloseTo(map.getContainer().clientHeight / 2, 6);
+    });
+
+    test('keeps the center when switching from mercator and back', async () => {
+        const map = createMap({center: [9.5, 47.2], zoom: 10});
+        await map.once('style.load');
+
+        map.setProjection({type: 'lv95'});
+        expect(map.getCenter().lng).toBeCloseTo(9.5, 9);
+        expect(map.getCenter().lat).toBeCloseTo(47.2, 9);
+
+        map.setProjection({type: 'mercator'});
+        expect(map.getCenter().lng).toBeCloseTo(9.5, 9);
+        expect(map.getCenter().lat).toBeCloseTo(47.2, 9);
+    });
+
+    test('unprojects the screen to the locations it projects, unlike mercator away from Bern', async () => {
+        const map = createMap({style: {version: 8, sources: {}, layers: [], projection: {type: 'lv95'}}, center: [8.23, 46.82], zoom: 8, pitch: 30});
+        await map.once('style.load');
+        const geneva = new LngLat(6.1432, 46.2044);
+
+        const point = map.project(geneva);
+        const restored = map.unproject(point);
+        expect(restored.lng).toBeCloseTo(geneva.lng, 9);
+        expect(restored.lat).toBeCloseTo(geneva.lat, 9);
+
+        map.setProjection({type: 'mercator'});
+        expect(map.project(geneva).dist(point)).toBeGreaterThan(1);
+    });
+});

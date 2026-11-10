@@ -1,18 +1,24 @@
 import {UBO_BINDINGS, UniformBuffer, std140Layout} from './uniform_buffer.ts';
 
 import type {Context} from './context.ts';
-import type {ProjectionData, RendererProjectionData} from '../geo/projection/projection_data.ts';
+import type {ProjectionData, ProjectionReprojectionData, RendererProjectionData} from '../geo/projection/projection_data.ts';
 
 const layout = std140Layout([
     {name: 'u_projection_matrix', type: 'mat4'},
     {name: 'u_projection_fallback_matrix', type: 'mat4'},
     {name: 'u_projection_tile_mercator_coords', type: 'vec4'},
     {name: 'u_projection_clipping_plane', type: 'vec4'},
+    {name: 'u_projection_reprojection_coefficients', type: 'mat4'},
+    {name: 'u_projection_reprojection_params', type: 'vec4'},
+    {name: 'u_projection_reprojection_origin', type: 'vec4'},
     {name: 'u_projection_transition', type: 'float'},
     {name: 'u_projection_clip_antimeridian', type: 'int'},
 ]);
 
 const offsets = layout.offsets;
+
+/** The reprojection of a projection that has none: zeros, which the shaders of other projections never read. */
+const NO_REPROJECTION: ProjectionReprojectionData = {params: [0, 0, 0, 0], origin: [0, 0, 0, 0], coefficients: new Float32Array(16)};
 
 /**
  * @internal
@@ -28,6 +34,10 @@ function updateProjectionUniformBuffer(buffer: UniformBuffer, projectionData: Pr
     f32.set(projectionData.fallbackMatrix, offsets.u_projection_fallback_matrix);
     f32.set(projectionData.tileMercatorCoords, offsets.u_projection_tile_mercator_coords);
     f32.set(projectionData.clippingPlane, offsets.u_projection_clipping_plane);
+    const reprojection = projectionData.reprojection ?? NO_REPROJECTION;
+    f32.set(reprojection.coefficients, offsets.u_projection_reprojection_coefficients);
+    f32.set(reprojection.params, offsets.u_projection_reprojection_params);
+    f32.set(reprojection.origin, offsets.u_projection_reprojection_origin);
     f32[offsets.u_projection_transition] = projectionData.projectionTransition;
     buffer.pendingWords[offsets.u_projection_clip_antimeridian] = projectionData.clipAntimeridian ? 1 : 0;
     buffer.upload();

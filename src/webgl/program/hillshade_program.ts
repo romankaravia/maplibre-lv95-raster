@@ -133,7 +133,7 @@ const hillshadeUniformPrepareValues = (transform: IReadonlyTransform, tileID: Ov
  * used before, so its hillshade does not change.
  */
 function getLog2WorldWidth(transform: IReadonlyTransform): number {
-    const worldCoordinateHelper = transform.worldCoordinateHelper;
+    const worldCoordinateHelper = transform.tileWorldCoordinateHelper;
     return worldCoordinateHelper.wraps ? 25.2562 : Math.log2(worldCoordinateHelper.metersPerWorldUnit(0.5, 0.5));
 }
 
@@ -144,7 +144,7 @@ function getLog2WorldWidth(transform: IReadonlyTransform): number {
  * applies no correction.
  */
 function getTileLatRange(transform: IReadonlyTransform, tileID: OverscaledTileID): [number, number] {
-    const worldCoordinateHelper = transform.worldCoordinateHelper;
+    const worldCoordinateHelper = transform.tileWorldCoordinateHelper;
     if (!worldCoordinateHelper.wraps) return [0, 0];
     // for scaling the magnitude of a points slope by its latitude
     const tilesAtZoom = Math.pow(2, tileID.canonical.z);

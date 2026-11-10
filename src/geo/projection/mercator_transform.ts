@@ -7,7 +7,7 @@ import {UnwrappedTileID, OverscaledTileID, type CanonicalTileID, calculateTileKe
 import {interpolates} from '@maplibre/maplibre-gl-style-spec';
 import {type PointProjection, xyTransformMat4} from '../../symbol/projection.ts';
 import {LngLatBounds} from '../lng_lat_bounds.ts';
-import {getMercatorHorizon, getMercatorTileCoordinates, projectToWorldCoordinates, unprojectFromWorldCoordinates, calculateTileMatrix, maxMercatorHorizonAngle, cameraMercatorCoordinateFromCenterAndRotation, lngLatBoxToWorldBox} from './mercator_utils.ts';
+import {getMercatorHorizon, getMercatorTileCoordinates, projectToWorldCoordinates, unprojectFromWorldCoordinates, calculateTileMatrix, maxMercatorHorizonAngle, cameraMercatorCoordinateFromCenterAndRotation, lngLatBoxToWorldBox, worldToTileGrid} from './mercator_utils.ts';
 import {EXTENT} from '../../data/extent.ts';
 import {TransformHelper} from '../transform_helper.ts';
 import {MercatorCoveringTilesDetailsProvider} from './mercator_covering_tiles_details_provider.ts';
@@ -65,6 +65,8 @@ type MercatorRay = {
     dz: number;
     worldSize: number;
     wraps: boolean;
+    /** Takes a world position to the grid tiles are cut in, where the terrain is sampled; null where the two agree. */
+    toTileGrid: ((x: number, y: number) => MercatorCoordinate) | null;
 };
 
 export class MercatorTransform implements ITransform {
@@ -318,13 +320,35 @@ export class MercatorTransform implements ITransform {
     }
 
     public clone(): ITransform {
-        const clone = new MercatorTransform({worldCoordinateHelper: this.worldCoordinateHelper});
+        const clone = new MercatorTransform({worldCoordinateHelper: this.worldCoordinateHelper, tileWorldCoordinateHelper: this.tileWorldCoordinateHelper});
         clone.apply(this, false);
         return clone;
     }
 
     get worldCoordinateHelper(): WorldCoordinateHelper {
         return this._helper.worldCoordinateHelper;
+    }
+
+    get tileWorldCoordinateHelper(): WorldCoordinateHelper {
+        return this._helper.tileWorldCoordinateHelper;
+    }
+
+    /**
+     * Takes a world position, which the camera works in, to the grid tiles are cut in, keeping `z`; null where the two
+     * agree, as everywhere but in a projection that reprojects its tiles.
+     */
+    private get _toTileGrid(): ((x: number, y: number, z?: number) => MercatorCoordinate) | null {
+        if (this.worldCoordinateHelper === this.tileWorldCoordinateHelper) return null;
+        return (x, y, z = 0) => {
+            const {x: gridX, y: gridY} = worldToTileGrid(this, x, y);
+            return new MercatorCoordinate(gridX, gridY, z);
+        };
+    }
+
+    /** {@link _toTileGrid} applied to a world position, or the position itself where the two grids agree. */
+    private _worldToTileGrid(coordinate: MercatorCoordinate | null): MercatorCoordinate | null {
+        const toTileGrid = this._toTileGrid;
+        return toTileGrid && coordinate ? toTileGrid(coordinate.x, coordinate.y, coordinate.z) : coordinate;
     }
 
     public apply(that: IReadonlyTransform, constrain: boolean): void {
@@ -336,6 +360,8 @@ export class MercatorTransform implements ITransform {
     public get modelViewProjectionMatrix(): mat4 { return this._viewProjMatrix; }
     public get inverseProjectionMatrix(): mat4 { return this._invProjMatrix; }
     public get mercatorMatrix(): mat4 { return this._mercatorMatrix; } // Not part of ITransform interface
+    /** The matrix from world pixels and meters to the clip space whose depth fog is computed from, see {@link calculateFogMatrix}. */
+    protected get fogMatrix(): mat4 { return this._fogMatrix; }
 
     getVisibleUnwrappedCoordinates(tileID: CanonicalTileID): UnwrappedTileID[] {
         const result = [new UnwrappedTileID(0, tileID)];
@@ -431,7 +457,7 @@ export class MercatorTransform implements ITransform {
     }
 
     screenPointToLocation(p: Point, terrain?: Terrain): LngLat {
-        return this._worldToLngLat(this.screenPointToMercatorCoordinate(p, terrain));
+        return this._worldToLngLat(this._screenPointToWorld(p, terrain));
     }
 
     screenPointToLocationAtElevation(p: Point, elevation: number): LngLat {
@@ -447,8 +473,13 @@ export class MercatorTransform implements ITransform {
     }
 
     screenPointToMercatorCoordinate(p: Point, terrain?: Terrain): MercatorCoordinate {
+        return this._worldToTileGrid(this._screenPointToWorld(p, terrain));
+    }
+
+    /** The world position under a screen point, on the terrain where the point's ray meets it, else at the center's elevation. */
+    private _screenPointToWorld(p: Point, terrain?: Terrain): MercatorCoordinate {
         if (terrain) {
-            const coordinate = this.screenTerrainPointToMercatorCoordinate(p, terrain);
+            const coordinate = this._screenTerrainPointToWorld(p, terrain);
             if (coordinate != null) {
                 return coordinate;
             }
@@ -469,12 +500,18 @@ export class MercatorTransform implements ITransform {
         const {near, far} = this.getRaySegmentFromPixel(getCenterPoint(this._cameraState), NEAR_PLANE_CLIP_Z);
         const distanceAtMaxZoom = this._cameraState.cameraToCenterDistance * zoomScale(this._cameraState.zoom - this._cameraState.maxZoom);
         const start = vec3.lerp([], near, far, Math.max(0, (distanceAtMaxZoom - this.nearZ) / (this.farZ - this.nearZ)));
-        if (isBelowTerrainSample(sampleAt(index, terrain.exaggeration, start[0] / getWorldSize(this._cameraState), start[1] / getWorldSize(this._cameraState), this.worldCoordinateHelper.wraps), start[2])) return null;
+        const startGrid = worldToTileGrid(this, start[0] / getWorldSize(this._cameraState), start[1] / getWorldSize(this._cameraState));
+        if (isBelowTerrainSample(sampleAt(index, terrain.exaggeration, startGrid.x, startGrid.y, this.worldCoordinateHelper.wraps), start[2])) return null;
         return this._worldToLngLat(this._raycastTerrain(start, far, terrain)) ?? null;
     }
 
     /** {@inheritDoc ITransform.screenTerrainPointToMercatorCoordinate} */
     screenTerrainPointToMercatorCoordinate(p: Point, terrain: Terrain): MercatorCoordinate | null {
+        return this._worldToTileGrid(this._screenTerrainPointToWorld(p, terrain));
+    }
+
+    /** The world position where the ray through a screen point meets the terrain, with its elevation in `z`, or null. */
+    private _screenTerrainPointToWorld(p: Point, terrain: Terrain): MercatorCoordinate | null {
         const {near, far} = this.getRaySegmentFromPixel(p, NEAR_PLANE_CLIP_Z);
         return this._raycastTerrain(near, far, terrain);
     }
@@ -488,7 +525,7 @@ export class MercatorTransform implements ITransform {
         const dx = far[0] - near[0];
         const dy = far[1] - near[1];
         const dz = far[2] - near[2];
-        const ray: MercatorRay = {index, exaggeration: terrain.exaggeration, near, dx, dy, dz, worldSize, wraps: this.worldCoordinateHelper.wraps};
+        const ray: MercatorRay = {index, exaggeration: terrain.exaggeration, near, dx, dy, dz, worldSize, wraps: this.worldCoordinateHelper.wraps, toTileGrid: this._toTileGrid};
 
         let tStart = 0;
         let tEnd = 1;
@@ -634,13 +671,13 @@ export class MercatorTransform implements ITransform {
 
     isPointOnMapSurface(p: Point, terrain?: Terrain): boolean {
         if (terrain) {
-            return this.screenTerrainPointToMercatorCoordinate(p, terrain) != null;
+            return this._screenTerrainPointToWorld(p, terrain) != null;
         }
         const belowHorizon = p.y > getCenterPoint(this._cameraState).y - this._getHorizon();
         if (!belowHorizon || this.worldCoordinateHelper.wraps) {
             return belowHorizon;
         }
-        const coordinate = this.screenPointToMercatorCoordinate(p);
+        const coordinate = this.screenPointToMercatorCoordinateAtZ(p);
         return this.worldCoordinateHelper.hasLngLat(coordinate.x, coordinate.y);
     }
 
@@ -1027,7 +1064,7 @@ export class MercatorTransform implements ITransform {
         // calcMatrices hasn't run yet
         if (!this._pixelMatrixInverse) return 1;
 
-        const coord = this.screenPointToMercatorCoordinate(new Point(0, 0));
+        const coord = this.screenPointToMercatorCoordinateAtZ(new Point(0, 0));
         const p = [coord.x * getWorldSize(this._cameraState), coord.y * getWorldSize(this._cameraState), 0, 1] as vec4;
         const topPoint = vec4.transformMat4(p, p, this._pixelMatrix);
         return topPoint[3] / this._cameraState.cameraToCenterDistance;
@@ -1086,7 +1123,7 @@ export class MercatorTransform implements ITransform {
         if (w <= 0 || clip[2] > w) return true;
         const p = new Point(clip[0] / w, clip[1] / w);
 
-        const hit = this.screenTerrainPointToMercatorCoordinate(p, terrain);
+        const hit = this._screenTerrainPointToWorld(p, terrain);
         if (hit == null) return false;
         const segment = this.getRaySegmentFromPixel(p, NEAR_PLANE_CLIP_Z);
         const tLocation = raySegmentParameter(segment, location.x * getWorldSize(this._cameraState), location.y * getWorldSize(this._cameraState), elevation);
@@ -1170,7 +1207,11 @@ export function createMercatorTransform(options?: TransformOptions): MercatorTra
 }
 
 function mercatorSampleAt(ray: MercatorRay, t: number): TerrainSample {
-    return sampleAt(ray.index, ray.exaggeration, (ray.near[0] + t * ray.dx) / ray.worldSize, (ray.near[1] + t * ray.dy) / ray.worldSize, ray.wraps);
+    const x = (ray.near[0] + t * ray.dx) / ray.worldSize;
+    const y = (ray.near[1] + t * ray.dy) / ray.worldSize;
+    if (!ray.toTileGrid) return sampleAt(ray.index, ray.exaggeration, x, y, ray.wraps);
+    const grid = ray.toTileGrid(x, y);
+    return sampleAt(ray.index, ray.exaggeration, grid.x, grid.y, ray.wraps);
 }
 
 function mercatorIsBelowTerrain(ray: MercatorRay, t: number): boolean {

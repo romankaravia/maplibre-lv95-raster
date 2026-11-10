@@ -179,7 +179,7 @@ export class FeatureIndex {
                 params.availableImages,
                 styleLayers,
                 serializedLayers,
-                args.transform.worldCoordinateHelper,
+                args.transform.tileWorldCoordinateHelper,
                 sourceFeatureState,
                 (feature: VectorTileFeatureLike, styleLayer: StyleLayer, featureState: FeatureState) => {
                     featureGeometry ||= loadGeometry(feature);

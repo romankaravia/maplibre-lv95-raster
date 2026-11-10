@@ -183,7 +183,7 @@ export function queryRenderedSymbols(styleLayers: {[_: string]: StyleLayer},
             {
                 filterSpec: params.filter,
                 globalState: params.globalState,
-                worldCoordinateHelper: collisionIndex.transform.worldCoordinateHelper
+                worldCoordinateHelper: collisionIndex.transform.tileWorldCoordinateHelper
             },
             params.layers,
             params.availableImages,

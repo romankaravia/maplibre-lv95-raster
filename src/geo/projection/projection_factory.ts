@@ -8,6 +8,8 @@ import {GlobeCameraHelper} from './globe_camera_helper.ts';
 import {VerticalPerspectiveCameraHelper} from './vertical_perspective_camera_helper.ts';
 import {createVerticalPerspectiveTransform} from './vertical_perspective_transform.ts';
 import {VerticalPerspectiveProjection} from './vertical_perspective_projection.ts';
+import {LV95Projection} from './lv95_projection.ts';
+import {createLV95Transform} from './lv95_transform.ts';
 import {CRSWorldCoordinateHelper} from './crs.ts';
 import {getRegisteredProjection} from './projection_crud.ts';
 
@@ -75,6 +77,14 @@ export function createProjectionFromName(name: ProjectionSpecification['type'], 
                 projection: new VerticalPerspectiveProjection(),
                 transform: createVerticalPerspectiveTransform(transformOptions),
                 cameraHelper: new VerticalPerspectiveCameraHelper(),
+            };
+        }
+        case 'lv95':
+        {
+            return {
+                projection: new LV95Projection(),
+                transform: createLV95Transform(transformOptions),
+                cameraHelper: new MercatorCameraHelper(),
             };
         }
         default:

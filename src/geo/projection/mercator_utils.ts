@@ -244,6 +244,17 @@ export function worldBoxToLngLatBox(worldCoordinateHelper: WorldCoordinateHelper
 }
 
 /**
+ * Takes a position in the world plane a transform's camera works in to the grid its tiles are cut in, where terrain
+ * is sampled. The two differ only in a projection that reprojects its tiles, such as LV95; elsewhere the position is
+ * returned as it is.
+ */
+export function worldToTileGrid(transform: {worldCoordinateHelper: WorldCoordinateHelper; tileWorldCoordinateHelper: WorldCoordinateHelper}, x: number, y: number): {x: number; y: number} {
+    if (transform.worldCoordinateHelper === transform.tileWorldCoordinateHelper) return {x, y};
+    const lngLat = transform.worldCoordinateHelper.lngLatFromWorld(x, y);
+    return transform.tileWorldCoordinateHelper.worldFromLngLat(lngLat.lng, lngLat.lat);
+}
+
+/**
  * The step in degrees over which {@link degreesPerWorldUnit} measures the size of a degree.
  */
 const DEGREE_STEP = 1e-4;

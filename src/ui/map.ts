@@ -3031,7 +3031,7 @@ export class Map extends Evented<MapEventType> {
             if (this.terrain) {
                 this.terrain.destroy();
             }
-            this.terrain = new Terrain(this.painter, tileManager, options, this._terrainSkirtLength, () => this._camera.transform.worldCoordinateHelper);
+            this.terrain = new Terrain(this.painter, tileManager, options, this._terrainSkirtLength, () => this._camera.transform.tileWorldCoordinateHelper);
             this.painter.renderToTexture = new RenderToTexture(this.painter, this.terrain);
             this._camera.setTerrain(this.terrain);
             this._terrainDataCallback = e => this._handleTerrainDataEvent(e, options.source);

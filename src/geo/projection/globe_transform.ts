@@ -390,6 +390,10 @@ export class GlobeTransform implements ITransform {
         return this._helper.worldCoordinateHelper;
     }
 
+    get tileWorldCoordinateHelper(): WorldCoordinateHelper {
+        return this._helper.tileWorldCoordinateHelper;
+    }
+
     getBounds(): LngLatBounds {
         return this.currentTransform.getBounds();
     }
