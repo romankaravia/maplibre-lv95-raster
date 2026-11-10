@@ -1,0 +1,6 @@
+# Publishes the examples with the prod bundle, in the repository's layout so their `../../dist/` imports work:
+# https://maplibre-lv95-raster.netlify.app/test/examples/<example>.html. The rest of the repository is left out:
+# Netlify rejects file names with `#` or `?`, which some test fixtures have.
+[build]
+command = "npm run build-css && npm run build-prod && mkdir -p site/test && cp -r dist site/ && cp -r test/examples site/test/"
+publish = "site"

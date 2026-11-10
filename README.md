@@ -1,3 +1,16 @@
+> [!CAUTION]
+> ## Fork of MapLibre GL JS: Swiss LV95 projection — proof of concept, not ready for production use
+>
+> This fork (branch `lv95-projection`) adds the Swiss `lv95` projection (EPSG:2056) and an example that displays
+> swisstopo raster tiles in their native LV95 tile grid. It is not part of
+> [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js).
+>
+> **Live examples:**
+> - [Display a map in the Swiss LV95 projection](https://maplibre-lv95-raster.netlify.app/test/examples/display-a-map-in-the-swiss-lv95-projection.html)
+> - [Display raster tiles in the LV95 grid](https://maplibre-lv95-raster.netlify.app/test/examples/display-raster-tiles-in-the-lv95-grid.html)
+
+---
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://maplibre.org/img/maplibre-logos/maplibre-logo-for-dark-bg.svg">
